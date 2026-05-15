@@ -21,6 +21,29 @@ except ImportError:
     print("Error: google-genai is not installed. Please install it with: pip install google-genai")
     sys.exit(1)
 
+API_KEY_ENV_VARS = ("GOOGLE_API_KEY", "GEMINI_API_KEY", "GENAI_API_KEY")
+PLACEHOLDER_API_KEYS = {
+    "your-api-key-here",
+    "your_google_api_key",
+    "your-google-api-key",
+    "your-api-key",
+    "api-key",
+    "apikey",
+}
+
+
+def _normalize_api_key(value: str) -> str:
+    return value.strip().strip('"').strip("'")
+
+
+def _is_placeholder_key(value: str) -> bool:
+    return value.strip().lower() in PLACEHOLDER_API_KEYS
+
+
+def _is_invalid_api_key_error(exc: Exception) -> bool:
+    message = str(exc).lower()
+    return "api key not valid" in message or "api_key_invalid" in message or "invalid api key" in message
+
 
 class KCSEMathExtractor:
     """Extracts KCSE math questions from documents and outputs structured JSON."""
@@ -32,13 +55,26 @@ class KCSEMathExtractor:
         Args:
             api_key: Google API key. If None, uses GOOGLE_API_KEY env variable.
         """
-        self.api_key = api_key or os.getenv("GOOGLE_API_KEY")
-        if not self.api_key:
+        raw_key = api_key
+        if not raw_key:
+            for env_var in API_KEY_ENV_VARS:
+                raw_key = os.getenv(env_var)
+                if raw_key:
+                    break
+
+        if not raw_key:
             raise ValueError(
-                "Google API key not found. Please set GOOGLE_API_KEY environment variable "
-                "or pass it as an argument."
+                "Google API key not found. Please set one of "
+                f"{', '.join(API_KEY_ENV_VARS)} or pass it as an argument."
             )
-        
+
+        self.api_key = _normalize_api_key(raw_key)
+        if not self.api_key or _is_placeholder_key(self.api_key):
+            raise ValueError(
+                "Google API key is set to a placeholder value. Please replace it with a valid key "
+                "from https://aistudio.google.com/app/apikey."
+            )
+
         self.client = genai.Client(api_key=self.api_key)
         self.model = "gemini-2.0-flash"
 
@@ -100,16 +136,25 @@ class KCSEMathExtractor:
 
             # Call the API with the uploaded file
             print("Processing with Gemini 2.0 Flash...")
-            response = self.client.models.generate_content(
-                model=self.model,
-                contents=[
-                    extraction_prompt,
-                    {
-                        "mime_type": uploaded_file.mime_type,
-                        "data": uploaded_file,
-                    }
-                ]
-            )
+            try:
+                response = self.client.models.generate_content(
+                    model=self.model,
+                    contents=[
+                        extraction_prompt,
+                        {
+                            "mime_type": uploaded_file.mime_type,
+                            "data": uploaded_file,
+                        }
+                    ]
+                )
+            except Exception as exc:
+                if _is_invalid_api_key_error(exc):
+                    raise ValueError(
+                        "Google API key is invalid. Please verify GOOGLE_API_KEY (or GEMINI_API_KEY/"
+                        "GENAI_API_KEY) is set to a valid key from "
+                        "https://aistudio.google.com/app/apikey."
+                    ) from exc
+                raise
 
             # Parse the response as JSON
             response_text = response.text.strip()

@@ -144,6 +144,12 @@ export GOOGLE_API_KEY="your-key"
 python test_extraction.py sample.pdf
 ```
 
+### "API key not valid" Error
+Your key is missing, expired, or still set to the placeholder value. Fix it by:
+1. Updating `.env` or your shell to use a real key (not `your-api-key-here`)
+2. Regenerating the key in Google AI Studio if needed
+3. Ensuring the Gemini API is enabled for your project
+
 ### "File not found" Error
 Ensure the file path is correct and the file exists:
 ```bash
