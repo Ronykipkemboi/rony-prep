@@ -8,6 +8,7 @@ import json
 import os
 import re
 import sys
+import time
 from pathlib import Path
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -365,6 +366,7 @@ def run_batch(extractor: KCSEMathExtractor, targets: list[ExtractionTarget], out
                     "error": str(exc),
                 }
             )
+        time.sleep(30)
     summary = {
         "processed_at": datetime.now(timezone.utc).isoformat(),
         "total_files": len(targets),
