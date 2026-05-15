@@ -22,6 +22,7 @@ except ImportError:
     sys.exit(1)
 
 API_KEY_ENV_VARS = ("GOOGLE_API_KEY", "GEMINI_API_KEY", "GENAI_API_KEY")
+API_KEY_ENV_LIST = ", ".join(API_KEY_ENV_VARS)
 PLACEHOLDER_API_KEYS = {
     "your-api-key-here",
     "your_google_api_key",
@@ -35,9 +36,9 @@ INVALID_API_KEY_HINTS = ("api key not valid", "api_key_invalid", "invalid api ke
 
 def _normalize_api_key(value: str) -> str:
     value = value.strip()
-    if value.startswith("'") and value.endswith("'") and "'" not in value[1:-1]:
+    if value.startswith("'") and value.endswith("'"):
         return value[1:-1].strip()
-    if value.startswith('"') and value.endswith('"') and '"' not in value[1:-1]:
+    if value.startswith('"') and value.endswith('"'):
         return value[1:-1].strip()
     return value
 
@@ -48,6 +49,17 @@ def _is_placeholder_key(value: str) -> bool:
 
 
 def _is_invalid_api_key_error(exc: Exception) -> bool:
+    for attr in ("error_details", "details", "errors"):
+        details = getattr(exc, attr, None)
+        if isinstance(details, (list, tuple)):
+            for detail in details:
+                if isinstance(detail, dict):
+                    if detail.get("reason") == "API_KEY_INVALID":
+                        return True
+                else:
+                    if getattr(detail, "reason", None) == "API_KEY_INVALID":
+                        return True
+
     message = str(exc).lower()
     return any(hint in message for hint in INVALID_API_KEY_HINTS)
 
@@ -72,14 +84,14 @@ class KCSEMathExtractor:
         if not raw_key:
             raise ValueError(
                 "Google API key not found. Please set one of "
-                f"{', '.join(API_KEY_ENV_VARS)} or pass it as an argument."
+                f"{API_KEY_ENV_LIST} or pass it as an argument."
             )
 
         self.api_key = _normalize_api_key(raw_key)
         if not self.api_key:
             raise ValueError(
                 "Google API key is empty or malformed. Please set one of "
-                f"{', '.join(API_KEY_ENV_VARS)} to a valid key."
+                f"{API_KEY_ENV_LIST} to a valid key."
             )
 
         if _is_placeholder_key(self.api_key):
@@ -162,10 +174,9 @@ class KCSEMathExtractor:
                 )
             except Exception as exc:
                 if _is_invalid_api_key_error(exc):
-                    env_list = ", ".join(API_KEY_ENV_VARS)
                     raise ValueError(
                         "Google API key is invalid. Please verify one of "
-                        f"{env_list} is set to a valid key from "
+                        f"{API_KEY_ENV_LIST} is set to a valid key from "
                         "https://aistudio.google.com/app/apikey."
                     ) from exc
                 raise
