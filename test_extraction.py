@@ -30,11 +30,12 @@ PLACEHOLDER_API_KEYS = {
     "api-key",
     "apikey",
 }
+INVALID_API_KEY_HINTS = ("api key not valid", "api_key_invalid", "invalid api key")
 
 
 def _normalize_api_key(value: str) -> str:
     value = value.strip()
-    if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+    if (value.startswith("'") and value.endswith("'")) or (value.startswith('"') and value.endswith('"')):
         return value[1:-1].strip()
     return value
 
@@ -46,7 +47,7 @@ def _is_placeholder_key(value: str) -> bool:
 
 def _is_invalid_api_key_error(exc: Exception) -> bool:
     message = str(exc).lower()
-    return "api key not valid" in message or "api_key_invalid" in message or "invalid api key" in message
+    return any(hint in message for hint in INVALID_API_KEY_HINTS)
 
 
 class KCSEMathExtractor:
