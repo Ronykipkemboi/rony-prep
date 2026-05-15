@@ -1,12 +1,12 @@
-# Technical Documentation: KCSE Math Question Extractor
+# Technical Documentation: KCSE Predictive Strategy Engine
 
 ## Overview
 
-This document details the implementation of the KCSE Math Question Extractor using Google's Gemini 2.0 Flash API.
+This document details the implementation of the KCSE Predictive Strategy Engine using Google's Gemini 2.0 Flash API to extract metadata for trend analysis and probability reporting.
 
 ## Problem Statement
 
-The original error encountered was:
+The repository now focuses on a predictive strategy engine that extracts topic, section, and marks metadata to estimate exam probabilities. Along the way, the original technical issue encountered was:
 ```
 TypeError: upload() got an unexpected keyword argument path
 ```
@@ -52,8 +52,8 @@ The extractor produces structured JSON with:
     {
       "number": 1,
       "text": "Question text",
-      "type": "question type",
-      "difficulty": "difficulty level",
+      "section": "Section I",
+      "marks": 2,
       "topic": "topic/subtopic"
     }
   ],
@@ -61,7 +61,10 @@ The extractor produces structured JSON with:
   "extraction_metadata": {
     "source_file": "filename",
     "extraction_date": "ISO timestamp",
-    "model_used": "gemini-2.0-flash"
+    "model_used": "gemini-2.0-flash",
+    "focus": "predictive_trend_analysis",
+    "year": 2024,
+    "paper": 1
   }
 }
 ```
@@ -82,6 +85,11 @@ The extractor produces structured JSON with:
 #### Supported Formats
 - PDF documents
 - Image files (PNG, JPG, JPEG, GIF, WebP, HEIC)
+
+#### Predictive Pipeline
+- **Paper Hunter** (`paper_hunter.py`) discovers and downloads KCSE Math Paper 1 & 2 PDFs (2015-2024).
+- **Batch Extraction** (`test_extraction.py`) processes every downloaded file from the manifest.
+- **Probability Report** (`probability_report.py`) summarizes topic frequency across the last 10 years.
 
 ## Implementation Details
 
@@ -115,10 +123,10 @@ The extractor produces structured JSON with:
 The prompt instructs the AI to:
 1. Identify each KCSE math question
 2. Extract question text
-3. Classify question type
-4. Estimate difficulty level
+3. Identify the section
+4. Extract the marks/weight
 5. Categorize by topic
-6. Return only valid JSON
+6. Avoid solving questions and return only valid JSON
 
 ## Usage Examples
 
@@ -130,6 +138,11 @@ python test_extraction.py sample.pdf
 
 # With custom output
 python test_extraction.py exam.pdf questions.json
+
+# Bulk pipeline: discover, extract, and report
+python paper_hunter.py --output-dir downloads/kcse_papers --manifest-path downloads/kcse_papers_manifest.json
+python test_extraction.py downloads/kcse_papers_manifest.json extracted_outputs/
+python probability_report.py extracted_outputs --output probability_report.json
 ```
 
 ### Python API
@@ -147,6 +160,8 @@ extractor.save_json_output(data, "output.json")
 | Package | Version | Purpose |
 |---------|---------|---------|
 | google-genai | ≥0.3.0 | Gemini API client |
+| requests | ≥2.32.3 | Web requests for paper discovery |
+| beautifulsoup4 | ≥4.12.3 | HTML parsing for search results |
 | Python | ≥3.8 | Runtime environment |
 
 ## Environment Variables
@@ -186,12 +201,11 @@ This validates the JSON schema and output format.
 ## Future Enhancements
 
 Potential improvements:
-1. Support for batch processing
-2. Custom extraction rules
-3. Answer key extraction
-4. Solution steps extraction
-5. Difficulty level refinement using ML
-6. Multi-language support
+1. Topic taxonomy refinement for more granular trends
+2. Custom extraction rules per section
+3. Answer key alignment for accuracy checks
+4. Trend visualization dashboards
+5. Multi-language support
 
 ## References
 
@@ -207,3 +221,8 @@ Potential improvements:
 - Clean JSON output for KCSE questions
 - Automatic file cleanup
 - Comprehensive error handling
+
+### v1.1.0 (2026-05-15)
+- Predictive strategy focus with topic/section/marks metadata
+- Paper Hunter discovery pipeline
+- Probability report generation for trend analysis
