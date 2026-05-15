@@ -1,14 +1,17 @@
-# KCSE Math Questions Extractor
+# KCSE Predictive Strategy Engine
 
-A Python utility to extract KCSE (Kenya Certificate of Secondary Education) mathematics questions from documents using Google's Gemini 2.0 Flash API. The extracted questions are output as clean, structured JSON.
+A Python utility to extract KCSE (Kenya Certificate of Secondary Education) mathematics question metadata for trend analysis using Google's Gemini 2.0 Flash API. It powers a Study Smart, Not Hard approach by producing probability reports from the last 10 years of papers.
 
 ## Features
 
 - ✅ **Fixed upload() API call** - Uses correct `file=` parameter (not `path=`)
 - ✅ **Gemini 2.0 Flash** - Latest Google Gemini model for fast, accurate extraction
-- ✅ **Structured JSON output** - Clean JSON format with question metadata
+- ✅ **Structured JSON output** - Clean JSON format with topic, section, and marks metadata
 - ✅ **Automatic file cleanup** - Uploaded files are automatically deleted after processing
 - ✅ **Error handling** - Comprehensive error handling and user feedback
+- ✅ **Paper Hunter** - Automated discovery and download of KCSE Math Paper 1 & 2 PDFs (2015-2024)
+- ✅ **Batch pipeline** - Process entire folders or hunter manifests in one run
+- ✅ **Probability Report** - Topic frequency and likelihood reporting for exam prediction
 
 ## Problem Fixed
 
@@ -70,6 +73,19 @@ python test_extraction.py sample_questions.pdf my_questions.json
 python test_extraction.py exam_scan.jpg extracted_math_questions.json
 ```
 
+### Bulk Pipeline (Hunter + Batch Extraction + Probability Report)
+
+```bash
+# 1) Discover and download papers
+python paper_hunter.py --output-dir downloads/kcse_papers --manifest-path downloads/kcse_papers_manifest.json
+
+# 2) Extract metadata from all papers
+python test_extraction.py downloads/kcse_papers_manifest.json extracted_outputs/
+
+# 3) Generate probability report
+python probability_report.py extracted_outputs --output probability_report.json
+```
+
 ### Using as a Module
 
 ```python
@@ -100,15 +116,15 @@ The script outputs a JSON file with the following structure:
     {
       "number": 1,
       "text": "Solve the equation 2x + 5 = 13",
-      "type": "short answer",
-      "difficulty": "easy",
+      "section": "Section I",
+      "marks": 2,
       "topic": "Algebra"
     },
     {
       "number": 2,
       "text": "Find the area of a circle with radius 7 cm",
-      "type": "short answer",
-      "difficulty": "medium",
+      "section": "Section II",
+      "marks": 5,
       "topic": "Geometry"
     }
   ],
@@ -116,7 +132,10 @@ The script outputs a JSON file with the following structure:
   "extraction_metadata": {
     "source_file": "sample.pdf",
     "extraction_date": "2024-05-15T16:55:00Z",
-    "model_used": "gemini-2.0-flash"
+    "model_used": "gemini-2.0-flash",
+    "focus": "predictive_trend_analysis",
+    "year": 2024,
+    "paper": 1
   }
 }
 ```
@@ -133,9 +152,9 @@ The script outputs a JSON file with the following structure:
 
 1. **API Parameter**: Changed `path=` to `file=` in the upload() call
 2. **Model Update**: Uses `gemini-2.0-flash` instead of older models
-3. **JSON Output**: Structured JSON output with metadata for better integration
-4. **Error Handling**: Improved error messages and graceful failure handling
-5. **Resource Cleanup**: Automatic deletion of uploaded files
+3. **Predictive Focus**: Extraction now targets topic, section, and marks for trend analysis
+4. **Batch Pipeline**: Run extraction across entire paper collections
+5. **Probability Reports**: Generate topic likelihood insights from recent years
 
 ## Troubleshooting
 
@@ -169,6 +188,8 @@ The API might have returned an error. Check:
 
 - Python 3.8+
 - google-genai ≥0.3.0
+- requests ≥2.32.3
+- beautifulsoup4 ≥4.12.3
 - Valid Google API key with Gemini access
 
 ## License

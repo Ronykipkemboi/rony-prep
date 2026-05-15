@@ -1,13 +1,16 @@
 #!/usr/bin/env python3
 """
-KCSE Math Questions Extraction Script
-Uses google-genai library to extract math questions from documents and output as clean JSON.
+KCSE Predictive Strategy Extraction Script
+Uses google-genai to extract question metadata for trend analysis.
 """
 
 import json
 import os
+import re
 import sys
 from pathlib import Path
+from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Optional
 
 from dotenv import load_dotenv
@@ -85,7 +88,7 @@ def _is_invalid_api_key_error(exc: Exception) -> bool:
 
 
 class KCSEMathExtractor:
-    """Extracts KCSE math questions from documents and outputs structured JSON."""
+    """Extracts KCSE math questions metadata for predictive trend analysis."""
 
     def __init__(self, api_key: Optional[str] = None):
         """
@@ -123,12 +126,22 @@ class KCSEMathExtractor:
         self.client = genai.Client(api_key=self.api_key)
         self.model = "gemini-2.0-flash"
 
-    def extract_questions(self, file_path: str) -> dict:
+    def extract_questions(
+        self,
+        file_path: str,
+        *,
+        year: Optional[int] = None,
+        paper: Optional[int] = None,
+        source_url: Optional[str] = None,
+    ) -> dict:
         """
         Extract KCSE math questions from a document file.
         
         Args:
             file_path: Path to the document file (PDF, image, etc.)
+            year: Optional year of the paper for metadata.
+            paper: Optional paper number for metadata.
+            source_url: Optional source URL for metadata.
             
         Returns:
             Dictionary containing extracted questions in JSON format
@@ -147,35 +160,36 @@ class KCSEMathExtractor:
         try:
             # Create the extraction prompt
             extraction_prompt = """
-            Please extract all KCSE (Kenya Certificate of Secondary Education) mathematics questions 
-            from this document. For each question, provide:
-            
+            Extract KCSE (Kenya Certificate of Secondary Education) mathematics questions for trend analysis.
+            Do NOT solve any questions. Focus only on metadata.
+
+            For each question, provide:
             1. Question number
             2. Question text
-            3. Question type (e.g., "multiple choice", "short answer", "problem solving")
-            4. Difficulty level (if identifiable: "easy", "medium", "hard")
-            5. Topic/subtopic (e.g., "Algebra", "Geometry", "Trigonometry", "Statistics", etc.)
-            
-            Return the results as a valid JSON array with the following structure:
+            3. Section (e.g., "Section I", "Section II")
+            4. Marks/weight (numeric marks assigned to the question)
+            5. Topic/subtopic (e.g., "Algebra", "Geometry", "Trigonometry", "Statistics")
+
+            Return the results as valid JSON with the following structure:
             {
                 "questions": [
                     {
                         "number": 1,
                         "text": "Question text here",
-                        "type": "multiple choice",
-                        "difficulty": "medium",
+                        "section": "Section I",
+                        "marks": 2,
                         "topic": "Algebra"
-                    },
-                    ...
+                    }
                 ],
                 "total_questions": <count>,
                 "extraction_metadata": {
                     "source_file": "<filename>",
                     "extraction_date": "<ISO timestamp>",
-                    "model_used": "gemini-2.0-flash"
+                    "model_used": "gemini-2.0-flash",
+                    "focus": "predictive_trend_analysis"
                 }
             }
-            
+
             IMPORTANT: Return ONLY valid JSON. Do not include any markdown formatting or explanation text.
             """
 
@@ -222,7 +236,22 @@ class KCSEMathExtractor:
             
             # Parse JSON response
             questions_data = json.loads(response_text)
-            
+
+            metadata = questions_data.setdefault("extraction_metadata", {})
+            metadata.setdefault("model_used", self.model)
+            metadata["source_file"] = file_path.name
+            metadata["extraction_date"] = datetime.now(timezone.utc).isoformat()
+            metadata["focus"] = "predictive_trend_analysis"
+            if year is not None:
+                metadata["year"] = year
+            if paper is not None:
+                metadata["paper"] = paper
+            if source_url:
+                metadata["source_url"] = source_url
+
+            if "total_questions" not in questions_data:
+                questions_data["total_questions"] = len(questions_data.get("questions", []))
+
             print(f"Successfully extracted {questions_data.get('total_questions', 0)} questions")
             return questions_data
 
@@ -242,41 +271,156 @@ class KCSEMathExtractor:
         output_path = Path(output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
         
-        with open(output_path, 'w', encoding='utf-8') as f:
+        with open(output_path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2, ensure_ascii=False)
         
         print(f"Results saved to: {output_path}")
 
 
+@dataclass
+class ExtractionTarget:
+    path: Path
+    year: Optional[int] = None
+    paper: Optional[int] = None
+    source_url: Optional[str] = None
+
+
+SUPPORTED_EXTENSIONS = {".pdf", ".png", ".jpg", ".jpeg", ".gif", ".webp", ".heic", ".heif"}
+
+
+def _parse_year_paper_from_name(path: Path) -> tuple[Optional[int], Optional[int]]:
+    match = re.search(r"(20\d{2}).*paper[\s_-]?([12])", path.stem, re.IGNORECASE)
+    if not match:
+        return None, None
+    return int(match.group(1)), int(match.group(2))
+
+
+def _load_manifest(manifest_path: Path) -> list[ExtractionTarget]:
+    data = json.loads(manifest_path.read_text(encoding="utf-8"))
+    records = data.get("records", [])
+    targets: list[ExtractionTarget] = []
+    for record in records:
+        status = record.get("status")
+        local_path = record.get("local_path")
+        if status not in {"downloaded", "exists"} or not local_path:
+            continue
+        path = Path(local_path)
+        if not path.exists():
+            continue
+        targets.append(
+            ExtractionTarget(
+                path=path,
+                year=record.get("year"),
+                paper=record.get("paper"),
+                source_url=record.get("source_url"),
+            )
+        )
+    return targets
+
+
+def _load_directory(input_dir: Path) -> list[ExtractionTarget]:
+    targets: list[ExtractionTarget] = []
+    for file_path in sorted(input_dir.glob("**/*")):
+        if not file_path.is_file() or file_path.suffix.lower() not in SUPPORTED_EXTENSIONS:
+            continue
+        year, paper = _parse_year_paper_from_name(file_path)
+        targets.append(ExtractionTarget(path=file_path, year=year, paper=paper))
+    return targets
+
+
+def _output_path_for_target(output_dir: Path, target: ExtractionTarget) -> Path:
+    if target.year and target.paper:
+        filename = f"kcse_math_{target.year}_paper_{target.paper}.json"
+    else:
+        filename = f"{target.path.stem}.json"
+    return output_dir / filename
+
+
+def run_batch(extractor: KCSEMathExtractor, targets: list[ExtractionTarget], output_dir: Path) -> dict:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    results: list[dict] = []
+    for target in targets:
+        try:
+            data = extractor.extract_questions(
+                str(target.path),
+                year=target.year,
+                paper=target.paper,
+                source_url=target.source_url,
+            )
+            output_path = _output_path_for_target(output_dir, target)
+            extractor.save_json_output(data, str(output_path))
+            results.append(
+                {
+                    "input_path": str(target.path),
+                    "output_path": str(output_path),
+                    "status": "success",
+                }
+            )
+        except Exception as exc:
+            results.append(
+                {
+                    "input_path": str(target.path),
+                    "output_path": None,
+                    "status": "failed",
+                    "error": str(exc),
+                }
+            )
+    summary = {
+        "processed_at": datetime.now(timezone.utc).isoformat(),
+        "total_files": len(targets),
+        "successes": len([r for r in results if r["status"] == "success"]),
+        "failures": len([r for r in results if r["status"] == "failed"]),
+        "results": results,
+    }
+    summary_path = output_dir / "batch_summary.json"
+    summary_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
+    print(f"Batch summary saved to: {summary_path}")
+    return summary
+
+
 def main():
     """Main function to demonstrate usage."""
-    # Example usage
     extractor = KCSEMathExtractor()
-    
-    # Check if a file path was provided as command line argument
-    if len(sys.argv) > 1:
-        file_path = sys.argv[1]
-        output_path = sys.argv[2] if len(sys.argv) > 2 else "extracted_questions.json"
-        
-        try:
-            questions_data = extractor.extract_questions(file_path)
-            extractor.save_json_output(questions_data, output_path)
-            
-            # Print summary
-            print("\n=== Extraction Summary ===")
-            print(f"Total questions extracted: {questions_data.get('total_questions', 0)}")
-            if questions_data.get('questions'):
-                print("\nFirst question preview:")
-                print(json.dumps(questions_data['questions'][0], indent=2, ensure_ascii=False))
-            
-        except Exception as e:
-            print(f"Error during extraction: {e}", file=sys.stderr)
-            sys.exit(1)
-    else:
-        print("Usage: python test_extraction.py <file_path> [output_path]")
-        print("\nExample: python test_extraction.py sample.pdf extracted_questions.json")
+
+    if len(sys.argv) <= 1:
+        print("Usage: python test_extraction.py <file|directory|manifest.json> [output_path]")
+        print("Examples:")
+        print("  python test_extraction.py sample.pdf extracted_questions.json")
+        print("  python test_extraction.py downloads/kcse_papers extracted_outputs/")
+        print("  python test_extraction.py downloads/kcse_papers_manifest.json extracted_outputs/")
         print("\nEnvironment Variables:")
         print("  GOOGLE_API_KEY - Your Google API key for Gemini access")
+        sys.exit(0)
+
+    input_path = Path(sys.argv[1])
+    output_path = sys.argv[2] if len(sys.argv) > 2 else None
+
+    try:
+        if input_path.is_dir():
+            targets = _load_directory(input_path)
+            output_dir = Path(output_path) if output_path else Path("extracted_outputs")
+            run_batch(extractor, targets, output_dir)
+        elif input_path.suffix.lower() == ".json":
+            data = json.loads(input_path.read_text(encoding="utf-8"))
+            if "records" in data:
+                targets = _load_manifest(input_path)
+                output_dir = Path(output_path) if output_path else Path("extracted_outputs")
+                run_batch(extractor, targets, output_dir)
+            else:
+                raise ValueError("JSON input is not a valid paper manifest.")
+        else:
+            output_file = output_path or "extracted_questions.json"
+            questions_data = extractor.extract_questions(str(input_path))
+            extractor.save_json_output(questions_data, output_file)
+
+            print("\n=== Extraction Summary ===")
+            print(f"Total questions extracted: {questions_data.get('total_questions', 0)}")
+            if questions_data.get("questions"):
+                print("\nFirst question preview:")
+                print(json.dumps(questions_data["questions"][0], indent=2, ensure_ascii=False))
+    except Exception as e:
+        print(f"Error during extraction: {e}", file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == "__main__":
