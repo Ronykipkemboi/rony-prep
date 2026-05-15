@@ -55,7 +55,8 @@ def build_query(year: int, paper: int) -> str:
 
 def _normalize_duckduckgo_url(url: str) -> str:
     parsed = urllib.parse.urlparse(url)
-    if parsed.netloc.endswith("duckduckgo.com") and parsed.path.startswith("/l/"):
+    hostname = parsed.hostname or ""
+    if hostname in {"duckduckgo.com", "www.duckduckgo.com"} and parsed.path.startswith("/l/"):
         params = urllib.parse.parse_qs(parsed.query)
         if "uddg" in params and params["uddg"]:
             return urllib.parse.unquote(params["uddg"][0])
