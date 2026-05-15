@@ -30,6 +30,19 @@ PLACEHOLDER_API_KEYS = {
     "your-api-key",
     "api-key",
     "apikey",
+    "your_api_key",
+    "yourapikey",
+    "yourkey",
+    "your_key",
+    "insert_api_key_here",
+    "replace_with_your_key",
+    "replace-with-your-key",
+    "replace_with_your_api_key",
+    "replace-with-your-api-key",
+    "enter_api_key",
+    "enter-your-api-key",
+    "add-api-key-here",
+    "add_api_key_here",
 }
 INVALID_API_KEY_HINTS = ("api key not valid", "api_key_invalid", "invalid api key")
 
@@ -48,17 +61,22 @@ def _is_placeholder_key(value: str) -> bool:
     return normalized in PLACEHOLDER_API_KEYS
 
 
+def _has_invalid_api_key_reason(details: object) -> bool:
+    if isinstance(details, (list, tuple)):
+        for detail in details:
+            if isinstance(detail, dict):
+                if detail.get("reason") == "API_KEY_INVALID":
+                    return True
+            else:
+                if getattr(detail, "reason", None) == "API_KEY_INVALID":
+                    return True
+    return False
+
+
 def _is_invalid_api_key_error(exc: Exception) -> bool:
     for attr in ("error_details", "details", "errors"):
-        details = getattr(exc, attr, None)
-        if isinstance(details, (list, tuple)):
-            for detail in details:
-                if isinstance(detail, dict):
-                    if detail.get("reason") == "API_KEY_INVALID":
-                        return True
-                else:
-                    if getattr(detail, "reason", None) == "API_KEY_INVALID":
-                        return True
+        if _has_invalid_api_key_reason(getattr(exc, attr, None)):
+            return True
 
     message = str(exc).lower()
     return any(hint in message for hint in INVALID_API_KEY_HINTS)
@@ -90,8 +108,8 @@ class KCSEMathExtractor:
         self.api_key = _normalize_api_key(raw_key)
         if not self.api_key:
             raise ValueError(
-                "Google API key is empty or malformed. Please set one of "
-                f"{API_KEY_ENV_LIST} to a valid key."
+                "Google API key is empty, whitespace-only, or contains only quotes. "
+                f"Please set one of {API_KEY_ENV_LIST} to a valid key."
             )
 
         if _is_placeholder_key(self.api_key):
