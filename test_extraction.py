@@ -35,9 +35,9 @@ INVALID_API_KEY_HINTS = ("api key not valid", "api_key_invalid", "invalid api ke
 
 def _normalize_api_key(value: str) -> str:
     value = value.strip()
-    if value.startswith("'") and value.endswith("'") and value.count("'") == 2:
+    if value.startswith("'") and value.endswith("'") and "'" not in value[1:-1]:
         return value[1:-1].strip()
-    if value.startswith('"') and value.endswith('"') and value.count('"') == 2:
+    if value.startswith('"') and value.endswith('"') and '"' not in value[1:-1]:
         return value[1:-1].strip()
     return value
 
