@@ -47,6 +47,8 @@ export GOOGLE_API_KEY="your-google-api-key-here"
 
 You can get your API key from [Google AI Studio](https://aistudio.google.com/app/apikey).
 
+Optionally, copy `.env.example` to `.env` and set `GOOGLE_API_KEY` there (the script loads it automatically).
+
 ## Usage
 
 ### Basic Usage

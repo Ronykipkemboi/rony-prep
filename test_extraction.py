@@ -37,7 +37,8 @@ def _normalize_api_key(value: str) -> str:
 
 
 def _is_placeholder_key(value: str) -> bool:
-    return value.strip().lower() in PLACEHOLDER_API_KEYS
+    normalized = _normalize_api_key(value).lower()
+    return normalized in PLACEHOLDER_API_KEYS
 
 
 def _is_invalid_api_key_error(exc: Exception) -> bool:
@@ -69,7 +70,13 @@ class KCSEMathExtractor:
             )
 
         self.api_key = _normalize_api_key(raw_key)
-        if not self.api_key or _is_placeholder_key(self.api_key):
+        if not self.api_key:
+            raise ValueError(
+                "Google API key is empty or malformed. Please set one of "
+                f"{', '.join(API_KEY_ENV_VARS)} to a valid key."
+            )
+
+        if _is_placeholder_key(self.api_key):
             raise ValueError(
                 "Google API key is set to a placeholder value. Please replace it with a valid key "
                 "from https://aistudio.google.com/app/apikey."
