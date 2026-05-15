@@ -17,6 +17,7 @@ load_dotenv()
 
 try:
     import google.genai as genai
+    from google.genai import types
 except ImportError:
     print("Error: google-genai is not installed. Please install it with: pip install google-genai")
     sys.exit(1)
@@ -184,12 +185,17 @@ class KCSEMathExtractor:
                 response = self.client.models.generate_content(
                     model=self.model,
                     contents=[
-                        extraction_prompt,
-                        {
-                            "mime_type": uploaded_file.mime_type,
-                            "data": uploaded_file,
-                        }
-                    ]
+                        types.Content(
+                            role="user",
+                            parts=[
+                                types.Part.from_text(text=extraction_prompt),
+                                types.Part.from_uri(
+                                    file_uri=uploaded_file.uri,
+                                    mime_type=uploaded_file.mime_type,
+                                ),
+                            ],
+                        )
+                    ],
                 )
             except Exception as exc:
                 if _is_invalid_api_key_error(exc):
