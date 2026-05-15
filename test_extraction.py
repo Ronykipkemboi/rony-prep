@@ -33,7 +33,10 @@ PLACEHOLDER_API_KEYS = {
 
 
 def _normalize_api_key(value: str) -> str:
-    return value.strip().strip('"').strip("'")
+    value = value.strip()
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+        return value[1:-1].strip()
+    return value
 
 
 def _is_placeholder_key(value: str) -> bool:
@@ -156,9 +159,10 @@ class KCSEMathExtractor:
                 )
             except Exception as exc:
                 if _is_invalid_api_key_error(exc):
+                    env_list = ", ".join(API_KEY_ENV_VARS)
                     raise ValueError(
-                        "Google API key is invalid. Please verify GOOGLE_API_KEY (or GEMINI_API_KEY/"
-                        "GENAI_API_KEY) is set to a valid key from "
+                        "Google API key is invalid. Please verify one of "
+                        f"{env_list} is set to a valid key from "
                         "https://aistudio.google.com/app/apikey."
                     ) from exc
                 raise
