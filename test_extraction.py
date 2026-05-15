@@ -21,6 +21,67 @@ except ImportError:
     print("Error: google-genai is not installed. Please install it with: pip install google-genai")
     sys.exit(1)
 
+API_KEY_ENV_VARS = ("GOOGLE_API_KEY", "GEMINI_API_KEY", "GENAI_API_KEY")
+API_KEY_ENV_LIST = ", ".join(API_KEY_ENV_VARS)
+PLACEHOLDER_API_KEYS = {
+    "your-api-key-here",
+    "your-api-key",
+    "your_api_key",
+    "yourapikey",
+    "api-key",
+    "apikey",
+}
+PLACEHOLDER_PREFIXES = ("your", "replace", "enter", "add", "insert")
+PLACEHOLDER_TOKENS = {"api", "key", "apikey"}
+INVALID_API_KEY_HINTS = (
+    "api key not valid",
+    "api_key_invalid",
+    "invalid api key",
+    "authentication failed",
+    "unauthorized",
+    "invalid credentials",
+)
+
+
+def _normalize_api_key(value: str) -> str:
+    value = value.strip()
+    if value.startswith("'") and value.endswith("'"):
+        return value[1:-1].strip()
+    if value.startswith('"') and value.endswith('"'):
+        return value[1:-1].strip()
+    return value
+
+
+def _is_placeholder_key(value: str) -> bool:
+    normalized = _normalize_api_key(value).lower()
+    if normalized in PLACEHOLDER_API_KEYS:
+        return True
+
+    tokens = normalized.replace("-", "_").split("_")
+    if tokens and tokens[0] in PLACEHOLDER_PREFIXES:
+        return any(token in PLACEHOLDER_TOKENS for token in tokens)
+
+    return False
+
+
+def _has_invalid_api_key_reason(details: object) -> bool:
+    if not details:
+        return False
+    if isinstance(details, dict):
+        return details.get("reason") == "API_KEY_INVALID"
+    if isinstance(details, (list, tuple)):
+        return any(_has_invalid_api_key_reason(detail) for detail in details)
+    return getattr(details, "reason", None) == "API_KEY_INVALID"
+
+
+def _is_invalid_api_key_error(exc: Exception) -> bool:
+    for attr in ("error_details", "details", "errors"):
+        if _has_invalid_api_key_reason(getattr(exc, attr, None)):
+            return True
+
+    message = str(exc).lower()
+    return any(hint in message for hint in INVALID_API_KEY_HINTS)
+
 
 class KCSEMathExtractor:
     """Extracts KCSE math questions from documents and outputs structured JSON."""
@@ -32,13 +93,32 @@ class KCSEMathExtractor:
         Args:
             api_key: Google API key. If None, uses GOOGLE_API_KEY env variable.
         """
-        self.api_key = api_key or os.getenv("GOOGLE_API_KEY")
+        raw_key = api_key
+        if not raw_key:
+            for env_var in API_KEY_ENV_VARS:
+                raw_key = os.getenv(env_var)
+                if raw_key:
+                    break
+
+        if not raw_key:
+            raise ValueError(
+                "Google API key not found. Please set one of "
+                f"{API_KEY_ENV_LIST} or pass it as an argument."
+            )
+
+        self.api_key = _normalize_api_key(raw_key)
         if not self.api_key:
             raise ValueError(
-                "Google API key not found. Please set GOOGLE_API_KEY environment variable "
-                "or pass it as an argument."
+                "Google API key is empty, whitespace-only, or contains only quotes. "
+                f"Please set one of {API_KEY_ENV_LIST} to a valid key."
             )
-        
+
+        if _is_placeholder_key(self.api_key):
+            raise ValueError(
+                "Google API key is set to a placeholder value. Please replace it with a valid key "
+                "from https://aistudio.google.com/app/apikey."
+            )
+
         self.client = genai.Client(api_key=self.api_key)
         self.model = "gemini-2.0-flash"
 
@@ -100,16 +180,25 @@ class KCSEMathExtractor:
 
             # Call the API with the uploaded file
             print("Processing with Gemini 2.0 Flash...")
-            response = self.client.models.generate_content(
-                model=self.model,
-                contents=[
-                    extraction_prompt,
-                    {
-                        "mime_type": uploaded_file.mime_type,
-                        "data": uploaded_file,
-                    }
-                ]
-            )
+            try:
+                response = self.client.models.generate_content(
+                    model=self.model,
+                    contents=[
+                        extraction_prompt,
+                        {
+                            "mime_type": uploaded_file.mime_type,
+                            "data": uploaded_file,
+                        }
+                    ]
+                )
+            except Exception as exc:
+                if _is_invalid_api_key_error(exc):
+                    raise ValueError(
+                        "Google API key is invalid. Please verify one of "
+                        f"{API_KEY_ENV_LIST} is set to a valid key from "
+                        "https://aistudio.google.com/app/apikey."
+                    ) from exc
+                raise
 
             # Parse the response as JSON
             response_text = response.text.strip()

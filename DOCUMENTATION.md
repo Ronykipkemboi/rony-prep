@@ -169,6 +169,7 @@ extractor.save_json_output(data, "output.json")
 | Error | Cause | Solution |
 |-------|-------|----------|
 | "API key not found" | GOOGLE_API_KEY not set | Set environment variable |
+| "API key not valid" | Invalid or placeholder key | Replace with a valid key from Google AI Studio and ensure Gemini API is enabled |
 | "File not found" | Invalid file path | Verify file exists |
 | "TypeError: upload()" | Using old API syntax | Update google-genai package |
 | "Invalid JSON" | Malformed response | Check API quota and limits |
