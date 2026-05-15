@@ -34,7 +34,7 @@ class KCSEMathExtractor:
                 "or pass it as an argument."
             )
         
-        genai.configure(api_key=self.api_key)
+        self.client = genai.Client(api_key=self.api_key)
         self.model = "gemini-2.0-flash"
 
     def extract_questions(self, file_path: str) -> dict:
@@ -55,7 +55,7 @@ class KCSEMathExtractor:
         print(f"Uploading file: {file_path}")
         
         # Use file= parameter instead of path= (this is the fix for the TypeError)
-        uploaded_file = genai.files.upload(file=file_path)
+        uploaded_file = self.client.files.upload(file=file_path)
         print(f"File uploaded successfully: {uploaded_file.name}")
 
         try:
@@ -95,7 +95,7 @@ class KCSEMathExtractor:
 
             # Call the API with the uploaded file
             print("Processing with Gemini 2.0 Flash...")
-            response = genai.models.generate_content(
+            response = self.client.models.generate_content(
                 model=self.model,
                 contents=[
                     extraction_prompt,
@@ -129,7 +129,7 @@ class KCSEMathExtractor:
         finally:
             # Clean up: delete the uploaded file
             print(f"Cleaning up: deleting uploaded file {uploaded_file.name}")
-            genai.files.delete(name=uploaded_file.name)
+            self.client.files.delete(name=uploaded_file.name)
 
     def save_json_output(self, data: dict, output_path: str) -> None:
         """
