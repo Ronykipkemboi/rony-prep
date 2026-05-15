@@ -25,26 +25,22 @@ API_KEY_ENV_VARS = ("GOOGLE_API_KEY", "GEMINI_API_KEY", "GENAI_API_KEY")
 API_KEY_ENV_LIST = ", ".join(API_KEY_ENV_VARS)
 PLACEHOLDER_API_KEYS = {
     "your-api-key-here",
-    "your_google_api_key",
-    "your-google-api-key",
     "your-api-key",
-    "api-key",
-    "apikey",
     "your_api_key",
     "yourapikey",
-    "yourkey",
-    "your_key",
-    "insert_api_key_here",
-    "replace_with_your_key",
-    "replace-with-your-key",
-    "replace_with_your_api_key",
-    "replace-with-your-api-key",
-    "enter_api_key",
-    "enter-your-api-key",
-    "add-api-key-here",
-    "add_api_key_here",
+    "api-key",
+    "apikey",
 }
-INVALID_API_KEY_HINTS = ("api key not valid", "api_key_invalid", "invalid api key")
+PLACEHOLDER_PREFIXES = ("your", "replace", "enter", "add", "insert")
+PLACEHOLDER_TOKENS = {"api", "key", "apikey"}
+INVALID_API_KEY_HINTS = (
+    "api key not valid",
+    "api_key_invalid",
+    "invalid api key",
+    "authentication failed",
+    "unauthorized",
+    "invalid credentials",
+)
 
 
 def _normalize_api_key(value: str) -> str:
@@ -58,19 +54,24 @@ def _normalize_api_key(value: str) -> str:
 
 def _is_placeholder_key(value: str) -> bool:
     normalized = _normalize_api_key(value).lower()
-    return normalized in PLACEHOLDER_API_KEYS
+    if normalized in PLACEHOLDER_API_KEYS:
+        return True
+
+    tokens = normalized.replace("-", "_").split("_")
+    if tokens and tokens[0] in PLACEHOLDER_PREFIXES:
+        return any(token in PLACEHOLDER_TOKENS for token in tokens)
+
+    return False
 
 
 def _has_invalid_api_key_reason(details: object) -> bool:
+    if not details:
+        return False
+    if isinstance(details, dict):
+        return details.get("reason") == "API_KEY_INVALID"
     if isinstance(details, (list, tuple)):
-        for detail in details:
-            if isinstance(detail, dict):
-                if detail.get("reason") == "API_KEY_INVALID":
-                    return True
-            else:
-                if getattr(detail, "reason", None) == "API_KEY_INVALID":
-                    return True
-    return False
+        return any(_has_invalid_api_key_reason(detail) for detail in details)
+    return getattr(details, "reason", None) == "API_KEY_INVALID"
 
 
 def _is_invalid_api_key_error(exc: Exception) -> bool:
