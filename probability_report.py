@@ -99,7 +99,7 @@ def build_report(
 ) -> dict:
     if end_year < start_year:
         raise ValueError(
-            f"end_year must be greater than or equal to start_year (start_year={start_year}, end_year={end_year})"
+            f"end_year must not be less than start_year (start_year={start_year}, end_year={end_year})"
         )
 
     topic_years: dict[tuple[str, str, str], set[int]] = {}

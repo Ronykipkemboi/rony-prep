@@ -155,9 +155,10 @@ def download_pdf(session: requests.Session, url: str, destination: Path) -> None
     with session.get(url, stream=True, timeout=60) as response:
         response.raise_for_status()
         content_type = response.headers.get("Content-Type", "").lower()
-        if any(bad_type in content_type for bad_type in ("text/html", "application/xhtml+xml", "text/xml", "application/xml")):
+        media_type = content_type.split(";", 1)[0].strip()
+        if media_type in {"text/html", "application/xhtml+xml", "text/xml", "application/xml"}:
             raise ValueError(
-                f"Downloaded content from {url} has content type {content_type!r}, which indicates HTML/XML instead of PDF."
+                f"Downloaded content from {url} has content type {content_type!r} (media type {media_type!r}), which indicates HTML/XML instead of PDF."
             )
 
         destination.parent.mkdir(parents=True, exist_ok=True)
