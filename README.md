@@ -186,7 +186,7 @@ The API might have returned an error. Check:
 
 ## Requirements
 
-- Python 3.8+
+- Python 3.9+
 - google-genai ≥0.3.0
 - requests ≥2.32.3
 - beautifulsoup4 ≥4.12.3

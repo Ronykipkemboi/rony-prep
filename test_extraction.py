@@ -8,6 +8,7 @@ import json
 import os
 import re
 import sys
+import time
 from pathlib import Path
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -27,6 +28,7 @@ except ImportError:
 
 API_KEY_ENV_VARS = ("GOOGLE_API_KEY", "GEMINI_API_KEY", "GENAI_API_KEY")
 API_KEY_ENV_LIST = ", ".join(API_KEY_ENV_VARS)
+BATCH_EXTRACTION_DELAY_SECONDS = 30
 PLACEHOLDER_API_KEYS = {
     "your-api-key-here",
     "your-api-key",
@@ -339,7 +341,7 @@ def _output_path_for_target(output_dir: Path, target: ExtractionTarget) -> Path:
 def run_batch(extractor: KCSEMathExtractor, targets: list[ExtractionTarget], output_dir: Path) -> dict:
     output_dir.mkdir(parents=True, exist_ok=True)
     results: list[dict] = []
-    for target in targets:
+    for index, target in enumerate(targets):
         try:
             data = extractor.extract_questions(
                 str(target.path),
@@ -365,6 +367,8 @@ def run_batch(extractor: KCSEMathExtractor, targets: list[ExtractionTarget], out
                     "error": str(exc),
                 }
             )
+        if index < len(targets) - 1:
+            time.sleep(BATCH_EXTRACTION_DELAY_SECONDS)
     summary = {
         "processed_at": datetime.now(timezone.utc).isoformat(),
         "total_files": len(targets),
