@@ -98,7 +98,7 @@ def build_report(
 ) -> dict:
     topic_years: dict[tuple[str, str, str], set[int]] = {}
     years_with_data: set[int] = set()
-    total_years = max(0, end_year - start_year + 1)
+    total_range_years = max(0, end_year - start_year + 1)
 
     for data in extractions:
         fallback_name = data.get("extraction_metadata", {}).get("source_file")
@@ -115,7 +115,7 @@ def build_report(
 
     summaries: list[dict] = []
     for (topic, section, paper_label), years in topic_years.items():
-        rate = (len(years) / total_years) if total_years else 0.0
+        rate = (len(years) / total_range_years) if total_range_years else 0.0
         probability = classify_probability(rate)
         summary = (
             f"{topic} has appeared in {rate:.0%} of {paper_label} {section} papers "
@@ -141,7 +141,7 @@ def build_report(
             "end_year": end_year,
             "intended_years": list(range(start_year, end_year + 1)),
             "years_with_data": sorted(years_with_data),
-            "total_years_in_range": total_years,
+            "total_years_in_range": total_range_years,
             "total_years_with_data": len(years_with_data),
         },
         "topics": summaries,

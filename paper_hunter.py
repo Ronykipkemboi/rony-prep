@@ -162,7 +162,10 @@ def download_pdf(session: requests.Session, url: str, destination: Path) -> None
             temp_destination.replace(destination)
         finally:
             if temp_destination.exists():
-                temp_destination.unlink()
+                try:
+                    temp_destination.unlink()
+                except OSError as cleanup_error:
+                    logging.warning("Failed to remove temporary file %s: %s", temp_destination, cleanup_error)
 
 
 def parse_papers(value: str) -> tuple[int, ...]:
@@ -173,7 +176,10 @@ def parse_papers(value: str) -> tuple[int, ...]:
             continue
         if not re.fullmatch(r"\d+", token):
             raise ValueError(f"Invalid paper value: {token}")
-        papers.append(int(token))
+        paper = int(token)
+        if paper not in DEFAULT_PAPERS:
+            raise ValueError(f"Unsupported paper value: {paper}. Only paper 1 and 2 are supported.")
+        papers.append(paper)
     if not papers:
         raise ValueError("No valid paper numbers provided.")
     return tuple(sorted(set(papers)))
