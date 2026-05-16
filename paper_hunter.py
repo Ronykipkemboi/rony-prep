@@ -31,8 +31,8 @@ USER_AGENT = (
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/120.0 Safari/537.36"
 )
+# Year hits are helpful, but exact paper matches should dominate and wrong-paper hits should lose hard.
 YEAR_MATCH_SCORE = 3
-# Exact paper matches are weighted highest; mismatched paper numbers are penalized.
 PAPER_MATCH_SCORE = 8
 OTHER_PAPER_PENALTY = 10
 RESULT_TEXT_SCORE = 1
@@ -155,7 +155,7 @@ def download_pdf(session: requests.Session, url: str, destination: Path) -> None
     with session.get(url, stream=True, timeout=60) as response:
         response.raise_for_status()
         content_type = response.headers.get("Content-Type", "").lower()
-        if content_type.startswith(("text/html", "application/xhtml+xml", "text/xml", "application/xml")):
+        if any(bad_type in content_type for bad_type in ("text/html", "application/xhtml+xml", "text/xml", "application/xml")):
             raise ValueError(
                 f"Downloaded content from {url} has content type {content_type!r}, which indicates HTML/XML instead of PDF."
             )
