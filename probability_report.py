@@ -96,9 +96,12 @@ def build_report(
     start_year: int,
     end_year: int,
 ) -> dict:
+    if end_year < start_year:
+        raise ValueError("end_year must be greater than or equal to start_year")
+
     topic_years: dict[tuple[str, str, str], set[int]] = {}
     years_with_data: set[int] = set()
-    total_range_years = max(0, end_year - start_year + 1)
+    total_range_years = end_year - start_year + 1
 
     for data in extractions:
         fallback_name = data.get("extraction_metadata", {}).get("source_file")

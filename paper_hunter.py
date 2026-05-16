@@ -31,6 +31,10 @@ USER_AGENT = (
     "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/120.0 Safari/537.36"
 )
+YEAR_MATCH_SCORE = 3
+PAPER_MATCH_SCORE = 8
+OTHER_PAPER_PENALTY = 10
+RESULT_TEXT_SCORE = 1
 
 
 @dataclass
@@ -112,13 +116,14 @@ def _score_search_result(result: SearchResult, year: int, paper: int) -> int:
     score = 0
 
     if str(year) in text:
-        score += 3
+        score += YEAR_MATCH_SCORE
     if re.search(rf"\bpaper[\s_-]*{paper}\b", text):
-        score += 8
-    if re.search(rf"\bpaper[\s_-]*{3 - paper}\b", text):
-        score -= 10
+        score += PAPER_MATCH_SCORE
+    other_paper = 2 if paper == 1 else 1
+    if re.search(rf"\bpaper[\s_-]*{other_paper}\b", text):
+        score -= OTHER_PAPER_PENALTY
     if result.text:
-        score += 1
+        score += RESULT_TEXT_SCORE
 
     return score
 
@@ -149,7 +154,7 @@ def download_pdf(session: requests.Session, url: str, destination: Path) -> None
         response.raise_for_status()
         content_type = response.headers.get("Content-Type", "").lower()
         if "html" in content_type or "xml" in content_type:
-            raise ValueError(f"Downloaded content from {url} is not a PDF.")
+            raise ValueError(f"Downloaded content from {url} has an HTML/XML content type, not a PDF.")
 
         destination.parent.mkdir(parents=True, exist_ok=True)
         try:
@@ -178,7 +183,7 @@ def parse_papers(value: str) -> tuple[int, ...]:
             raise ValueError(f"Invalid paper value: {token}")
         paper = int(token)
         if paper not in DEFAULT_PAPERS:
-            raise ValueError(f"Unsupported paper value: {paper}. Only paper 1 and 2 are supported.")
+            raise ValueError(f"Unsupported paper value: {paper}. Supported papers: {DEFAULT_PAPERS}")
         papers.append(paper)
     if not papers:
         raise ValueError("No valid paper numbers provided.")

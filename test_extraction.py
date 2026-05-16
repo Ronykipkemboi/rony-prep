@@ -28,6 +28,7 @@ except ImportError:
 
 API_KEY_ENV_VARS = ("GOOGLE_API_KEY", "GEMINI_API_KEY", "GENAI_API_KEY")
 API_KEY_ENV_LIST = ", ".join(API_KEY_ENV_VARS)
+BATCH_EXTRACTION_DELAY_SECONDS = 30
 PLACEHOLDER_API_KEYS = {
     "your-api-key-here",
     "your-api-key",
@@ -366,7 +367,7 @@ def run_batch(extractor: KCSEMathExtractor, targets: list[ExtractionTarget], out
                     "error": str(exc),
                 }
             )
-        time.sleep(30)
+        time.sleep(BATCH_EXTRACTION_DELAY_SECONDS)
     summary = {
         "processed_at": datetime.now(timezone.utc).isoformat(),
         "total_files": len(targets),
