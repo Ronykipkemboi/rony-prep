@@ -24,6 +24,11 @@ def _parse_year_from_name(path: Path) -> Optional[int]:
     return int(match.group(1)) if match else None
 
 
+def _parse_paper_from_name(path: Path) -> Optional[int]:
+    match = re.search(r"paper[\s_-]?([12])", path.stem, re.IGNORECASE)
+    return int(match.group(1)) if match else None
+
+
 def _parse_section(value: Optional[str]) -> str:
     if not value:
         return "All Sections"
@@ -65,6 +70,18 @@ def extract_year(data: dict, fallback_name: Optional[str]) -> Optional[int]:
     return None
 
 
+def extract_paper(data: dict, fallback_name: Optional[str]) -> Optional[int]:
+    metadata = data.get("extraction_metadata", {})
+    paper = metadata.get("paper")
+    if isinstance(paper, int):
+        return paper
+    if isinstance(paper, str) and paper.isdigit():
+        return int(paper)
+    if fallback_name:
+        return _parse_paper_from_name(Path(fallback_name))
+    return None
+
+
 def classify_probability(rate: float) -> str:
     if rate >= 0.7:
         return "High"
@@ -79,33 +96,36 @@ def build_report(
     start_year: int,
     end_year: int,
 ) -> dict:
-    topic_years: dict[tuple[str, str], set[int]] = {}
+    topic_years: dict[tuple[str, str, str], set[int]] = {}
     years_with_data: set[int] = set()
+    total_years = max(0, end_year - start_year + 1)
 
     for data in extractions:
         fallback_name = data.get("extraction_metadata", {}).get("source_file")
         year = extract_year(data, fallback_name)
+        paper = extract_paper(data, fallback_name)
         if year is None or year < start_year or year > end_year:
             continue
         years_with_data.add(year)
+        paper_label = f"Paper {paper}" if paper in {1, 2} else "Paper Unknown"
         for question in data.get("questions", []):
             topic = _parse_topic(question.get("topic"))
             section = _parse_section(question.get("section"))
-            topic_years.setdefault((topic, section), set()).add(year)
+            topic_years.setdefault((topic, section, paper_label), set()).add(year)
 
-    total_years = len(years_with_data)
     summaries: list[dict] = []
-    for (topic, section), years in topic_years.items():
+    for (topic, section, paper_label), years in topic_years.items():
         rate = (len(years) / total_years) if total_years else 0.0
         probability = classify_probability(rate)
         summary = (
-            f"{topic} has appeared in {rate:.0%} of {section} papers "
-            f"since {start_year}; Probability for this year: {probability}."
+            f"{topic} has appeared in {rate:.0%} of {paper_label} {section} papers "
+            f"across {start_year}-{end_year}; Probability for this year: {probability}."
         )
         summaries.append(
             {
                 "topic": topic,
                 "section": section,
+                "paper": paper_label,
                 "appearance_rate": round(rate, 3),
                 "years_appeared": sorted(years),
                 "probability": probability,
@@ -119,8 +139,10 @@ def build_report(
         "range": {
             "start_year": start_year,
             "end_year": end_year,
+            "intended_years": list(range(start_year, end_year + 1)),
             "years_with_data": sorted(years_with_data),
-            "total_years_with_data": total_years,
+            "total_years_in_range": total_years,
+            "total_years_with_data": len(years_with_data),
         },
         "topics": summaries,
     }

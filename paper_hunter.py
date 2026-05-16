@@ -45,6 +45,12 @@ class PaperRecord:
     discovered_at: str
 
 
+@dataclass
+class SearchResult:
+    url: str
+    text: str
+
+
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -63,31 +69,31 @@ def _normalize_duckduckgo_url(url: str) -> str:
     return url
 
 
-def fetch_search_results(session: requests.Session, query: str, max_results: int) -> list[str]:
+def fetch_search_results(session: requests.Session, query: str, max_results: int) -> list[SearchResult]:
     response = session.get(SEARCH_URL, params={"q": query}, timeout=30)
     response.raise_for_status()
     soup = BeautifulSoup(response.text, "html.parser")
 
-    links: list[str] = []
+    links: list[SearchResult] = []
     for anchor in soup.select("a.result__a"):
         href = anchor.get("href")
         if not href:
             continue
-        links.append(_normalize_duckduckgo_url(href))
+        links.append(SearchResult(url=_normalize_duckduckgo_url(href), text=anchor.get_text(" ", strip=True)))
 
     if not links:
         for anchor in soup.find_all("a", href=True):
             href = anchor["href"]
             if href.startswith("http"):
-                links.append(_normalize_duckduckgo_url(href))
+                links.append(SearchResult(url=_normalize_duckduckgo_url(href), text=anchor.get_text(" ", strip=True)))
 
-    deduped: list[str] = []
+    deduped: list[SearchResult] = []
     seen = set()
-    for link in links:
-        if link in seen:
+    for result in links:
+        if result.url in seen:
             continue
-        seen.add(link)
-        deduped.append(link)
+        seen.add(result.url)
+        deduped.append(result)
         if len(deduped) >= max_results:
             break
     return deduped
@@ -97,13 +103,40 @@ def _is_pdf_url(url: str) -> bool:
     return urllib.parse.urlparse(url).path.lower().endswith(".pdf")
 
 
-def choose_pdf_url(urls: Iterable[str], year: int) -> Optional[str]:
-    year_token = str(year)
-    candidates = [url for url in urls if _is_pdf_url(url)]
-    for url in candidates:
-        if year_token in url:
-            return url
-    return candidates[0] if candidates else None
+def _result_text(result: SearchResult) -> str:
+    return f"{result.text} {result.url}".lower()
+
+
+def _score_search_result(result: SearchResult, year: int, paper: int) -> int:
+    text = _result_text(result)
+    score = 0
+
+    if str(year) in text:
+        score += 3
+    if re.search(rf"\bpaper[\s_-]*{paper}\b", text):
+        score += 8
+    if re.search(rf"\bpaper[\s_-]*{3 - paper}\b", text):
+        score -= 10
+    if result.text:
+        score += 1
+
+    return score
+
+
+def choose_pdf_url(results: Iterable[SearchResult], year: int, paper: int) -> Optional[str]:
+    candidates = [result for result in results if _is_pdf_url(result.url)]
+    if not candidates:
+        return None
+    best_result = max(candidates, key=lambda result: _score_search_result(result, year, paper))
+    return best_result.url
+
+
+def _is_valid_pdf_file(path: Path) -> bool:
+    try:
+        with path.open("rb") as file_handle:
+            return file_handle.read(5) == b"%PDF-"
+    except OSError:
+        return False
 
 
 def build_filename(year: int, paper: int) -> str:
@@ -111,13 +144,25 @@ def build_filename(year: int, paper: int) -> str:
 
 
 def download_pdf(session: requests.Session, url: str, destination: Path) -> None:
+    temp_destination = destination.with_name(f"{destination.name}.part")
     with session.get(url, stream=True, timeout=60) as response:
         response.raise_for_status()
+        content_type = response.headers.get("Content-Type", "").lower()
+        if "html" in content_type or "xml" in content_type:
+            raise ValueError(f"Downloaded content from {url} is not a PDF.")
+
         destination.parent.mkdir(parents=True, exist_ok=True)
-        with destination.open("wb") as file_handle:
-            for chunk in response.iter_content(chunk_size=1024 * 64):
-                if chunk:
-                    file_handle.write(chunk)
+        try:
+            with temp_destination.open("wb") as file_handle:
+                for chunk in response.iter_content(chunk_size=1024 * 64):
+                    if chunk:
+                        file_handle.write(chunk)
+            if not _is_valid_pdf_file(temp_destination):
+                raise ValueError(f"Downloaded content from {url} is not a valid PDF file.")
+            temp_destination.replace(destination)
+        finally:
+            if temp_destination.exists():
+                temp_destination.unlink()
 
 
 def parse_papers(value: str) -> tuple[int, ...]:
@@ -151,7 +196,7 @@ def run_hunter(args: argparse.Namespace) -> int:
 
             try:
                 results = fetch_search_results(session, query, args.max_results)
-                pdf_url = choose_pdf_url(results, year)
+                pdf_url = choose_pdf_url(results, year, paper)
             except Exception as exc:
                 records.append(
                     PaperRecord(
@@ -184,19 +229,23 @@ def run_hunter(args: argparse.Namespace) -> int:
 
             destination = output_dir / build_filename(year, paper)
             if destination.exists():
-                records.append(
-                    PaperRecord(
-                        year=year,
-                        paper=paper,
-                        query=query,
-                        source_url=pdf_url,
-                        local_path=str(destination),
-                        status="exists",
-                        error=None,
-                        discovered_at=_now_iso(),
+                if not _is_valid_pdf_file(destination):
+                    logging.warning("Existing file is not a valid PDF; redownloading %s", destination)
+                    destination.unlink()
+                else:
+                    records.append(
+                        PaperRecord(
+                            year=year,
+                            paper=paper,
+                            query=query,
+                            source_url=pdf_url,
+                            local_path=str(destination),
+                            status="exists",
+                            error=None,
+                            discovered_at=_now_iso(),
+                        )
                     )
-                )
-                continue
+                    continue
 
             if args.dry_run:
                 records.append(

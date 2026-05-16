@@ -162,7 +162,7 @@ extractor.save_json_output(data, "output.json")
 | google-genai | ≥0.3.0 | Gemini API client |
 | requests | ≥2.32.3 | Web requests for paper discovery |
 | beautifulsoup4 | ≥4.12.3 | HTML parsing for search results |
-| Python | ≥3.8 | Runtime environment |
+| Python | ≥3.9 | Runtime environment |
 
 ## Environment Variables
 
