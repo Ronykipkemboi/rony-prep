@@ -32,6 +32,7 @@ USER_AGENT = (
     "(KHTML, like Gecko) Chrome/120.0 Safari/537.36"
 )
 YEAR_MATCH_SCORE = 3
+# Exact paper matches are weighted highest; mismatched paper numbers are penalized.
 PAPER_MATCH_SCORE = 8
 OTHER_PAPER_PENALTY = 10
 RESULT_TEXT_SCORE = 1
@@ -153,7 +154,7 @@ def download_pdf(session: requests.Session, url: str, destination: Path) -> None
     with session.get(url, stream=True, timeout=60) as response:
         response.raise_for_status()
         content_type = response.headers.get("Content-Type", "").lower()
-        if "html" in content_type or "xml" in content_type:
+        if content_type.startswith(("text/html", "application/xhtml+xml", "text/xml", "application/xml")):
             raise ValueError(f"Downloaded content from {url} has an HTML/XML content type, not a PDF.")
 
         destination.parent.mkdir(parents=True, exist_ok=True)
@@ -163,7 +164,10 @@ def download_pdf(session: requests.Session, url: str, destination: Path) -> None
                     if chunk:
                         file_handle.write(chunk)
             if not _is_valid_pdf_file(temp_destination):
-                raise ValueError(f"Downloaded content from {url} is not a valid PDF file.")
+                header = temp_destination.read_bytes()[:16]
+                raise ValueError(
+                    f"Downloaded content from {url} is not a valid PDF file; header starts with {header!r}."
+                )
             temp_destination.replace(destination)
         finally:
             if temp_destination.exists():
