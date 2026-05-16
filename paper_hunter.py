@@ -37,6 +37,7 @@ PAPER_MATCH_SCORE = 8
 OTHER_PAPER_PENALTY = 10
 RESULT_TEXT_SCORE = 1
 PAPER_ALTERNATES = {1: 2, 2: 1}
+BAD_PDF_CONTENT_TYPES = {"text/html", "application/xhtml+xml", "text/xml", "application/xml"}
 
 
 @dataclass
@@ -114,6 +115,9 @@ def _result_text(result: SearchResult) -> str:
 
 
 def _score_search_result(result: SearchResult, year: int, paper: int) -> int:
+    if paper not in PAPER_ALTERNATES:
+        raise ValueError(f"Unsupported paper value: {paper}")
+
     text = _result_text(result)
     score = 0
 
@@ -121,7 +125,7 @@ def _score_search_result(result: SearchResult, year: int, paper: int) -> int:
         score += YEAR_MATCH_SCORE
     if re.search(rf"\bpaper[\s_-]*{paper}\b", text):
         score += PAPER_MATCH_SCORE
-    other_paper = PAPER_ALTERNATES.get(paper)
+    other_paper = PAPER_ALTERNATES[paper]
     if re.search(rf"\bpaper[\s_-]*{other_paper}\b", text):
         score -= OTHER_PAPER_PENALTY
     if result.text:
@@ -156,7 +160,7 @@ def download_pdf(session: requests.Session, url: str, destination: Path) -> None
         response.raise_for_status()
         content_type = response.headers.get("Content-Type", "").lower()
         media_type = content_type.split(";", 1)[0].strip()
-        if media_type in {"text/html", "application/xhtml+xml", "text/xml", "application/xml"}:
+        if media_type in BAD_PDF_CONTENT_TYPES:
             raise ValueError(
                 f"Downloaded content from {url} has content type {content_type!r} (media type {media_type!r}), which indicates HTML/XML instead of PDF."
             )

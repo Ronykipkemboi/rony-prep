@@ -367,7 +367,7 @@ def run_batch(extractor: KCSEMathExtractor, targets: list[ExtractionTarget], out
                     "error": str(exc),
                 }
             )
-        if index + 1 < len(targets):
+        if index < len(targets) - 1:
             time.sleep(BATCH_EXTRACTION_DELAY_SECONDS)
     summary = {
         "processed_at": datetime.now(timezone.utc).isoformat(),
