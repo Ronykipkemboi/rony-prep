@@ -25,6 +25,7 @@ def _parse_year_from_name(path: Path) -> Optional[int]:
 
 
 def _parse_paper_from_name(path: Path) -> Optional[int]:
+    """Extract Paper 1 or Paper 2 from a filename stem when present."""
     match = re.search(r"paper[\s_-]?([12])", path.stem, re.IGNORECASE)
     return int(match.group(1)) if match else None
 

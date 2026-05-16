@@ -36,6 +36,7 @@ YEAR_MATCH_SCORE = 3
 PAPER_MATCH_SCORE = 8
 OTHER_PAPER_PENALTY = 10
 RESULT_TEXT_SCORE = 1
+PAPER_ALTERNATES = {1: 2, 2: 1}
 
 
 @dataclass
@@ -120,7 +121,7 @@ def _score_search_result(result: SearchResult, year: int, paper: int) -> int:
         score += YEAR_MATCH_SCORE
     if re.search(rf"\bpaper[\s_-]*{paper}\b", text):
         score += PAPER_MATCH_SCORE
-    other_paper = 2 if paper == 1 else 1
+    other_paper = PAPER_ALTERNATES.get(paper)
     if re.search(rf"\bpaper[\s_-]*{other_paper}\b", text):
         score -= OTHER_PAPER_PENALTY
     if result.text:
@@ -140,7 +141,7 @@ def choose_pdf_url(results: Iterable[SearchResult], year: int, paper: int) -> Op
 def _is_valid_pdf_file(path: Path) -> bool:
     try:
         with path.open("rb") as file_handle:
-            return file_handle.read(5) == b"%PDF-"
+            return file_handle.read(8).startswith(b"%PDF-")
     except OSError:
         return False
 
@@ -155,7 +156,9 @@ def download_pdf(session: requests.Session, url: str, destination: Path) -> None
         response.raise_for_status()
         content_type = response.headers.get("Content-Type", "").lower()
         if content_type.startswith(("text/html", "application/xhtml+xml", "text/xml", "application/xml")):
-            raise ValueError(f"Downloaded content from {url} has an HTML/XML content type, not a PDF.")
+            raise ValueError(
+                f"Downloaded content from {url} has content type {content_type!r}, which indicates HTML/XML instead of PDF."
+            )
 
         destination.parent.mkdir(parents=True, exist_ok=True)
         try:
@@ -164,7 +167,8 @@ def download_pdf(session: requests.Session, url: str, destination: Path) -> None
                     if chunk:
                         file_handle.write(chunk)
             if not _is_valid_pdf_file(temp_destination):
-                header = temp_destination.read_bytes()[:16]
+                with temp_destination.open("rb") as file_handle:
+                    header = file_handle.read(16)
                 raise ValueError(
                     f"Downloaded content from {url} is not a valid PDF file; header starts with {header!r}."
                 )

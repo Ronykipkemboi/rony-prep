@@ -341,7 +341,6 @@ def _output_path_for_target(output_dir: Path, target: ExtractionTarget) -> Path:
 def run_batch(extractor: KCSEMathExtractor, targets: list[ExtractionTarget], output_dir: Path) -> dict:
     output_dir.mkdir(parents=True, exist_ok=True)
     results: list[dict] = []
-    last_index = len(targets) - 1
     for index, target in enumerate(targets):
         try:
             data = extractor.extract_questions(
@@ -368,7 +367,7 @@ def run_batch(extractor: KCSEMathExtractor, targets: list[ExtractionTarget], out
                     "error": str(exc),
                 }
             )
-        if index != last_index:
+        if index + 1 < len(targets):
             time.sleep(BATCH_EXTRACTION_DELAY_SECONDS)
     summary = {
         "processed_at": datetime.now(timezone.utc).isoformat(),
