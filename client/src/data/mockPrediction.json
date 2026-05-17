@@ -10,32 +10,32 @@
       "paper": "Paper 2",
       "section": "Section II",
       "appearance_rate": 0.8,
-      "average_marks": 10,
-      "priority": "HIGH"
+      "years_appeared": [2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022],
+      "probability": "HIGH"
     },
     {
       "topic": "Calculus (Differentiation)",
       "paper": "Paper 1",
       "section": "Section II",
       "appearance_rate": 0.7,
-      "average_marks": 10,
-      "priority": "HIGH"
+      "years_appeared": [2015, 2016, 2017, 2018, 2019, 2020, 2021],
+      "probability": "HIGH"
     },
     {
       "topic": "Commercial Arithmetic",
       "paper": "Paper 1",
       "section": "Section I",
       "appearance_rate": 0.9,
-      "average_marks": 4,
-      "priority": "HIGH"
+      "years_appeared": [2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023],
+      "probability": "HIGH"
     },
     {
       "topic": "Longitudes & Latitudes",
       "paper": "Paper 2",
       "section": "Section II",
       "appearance_rate": 0.4,
-      "average_marks": 10,
-      "priority": "MEDIUM"
+      "years_appeared": [2016, 2018, 2020, 2022],
+      "probability": "MEDIUM"
     }
   ]
 }

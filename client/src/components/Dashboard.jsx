@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import mockPrediction from '../data/mockPrediction.json'
 
-const priorityClassNames = {
+const probabilityClassNames = {
   HIGH: 'bg-orange-100 text-orange-700',
   MEDIUM: 'bg-yellow-100 text-yellow-700',
   LOW: 'bg-slate-200 text-slate-600',
@@ -67,8 +67,8 @@ function Dashboard() {
                   <th className="py-2 pr-4 font-semibold">Topic</th>
                   <th className="py-2 pr-4 font-semibold">Section</th>
                   <th className="py-2 pr-4 font-semibold">Appearance</th>
-                  <th className="py-2 pr-4 font-semibold">Avg Marks</th>
-                  <th className="py-2 font-semibold">Priority</th>
+                  <th className="py-2 pr-4 font-semibold">Years Appeared</th>
+                  <th className="py-2 font-semibold">Probability</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -79,14 +79,14 @@ function Dashboard() {
                     <td className="py-3 pr-4 text-slate-600">
                       {Math.round(topic.appearance_rate * 100)}%
                     </td>
-                    <td className="py-3 pr-4 text-slate-600">{topic.average_marks}</td>
+                    <td className="py-3 pr-4 text-slate-600">{topic.years_appeared?.length ?? 0}</td>
                     <td className="py-3">
                       <span
                         className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
-                          priorityClassNames[topic.priority] ?? priorityClassNames.LOW
+                          probabilityClassNames[topic.probability] ?? probabilityClassNames.LOW
                         }`}
                       >
-                        {topic.priority}
+                        {topic.probability}
                       </span>
                     </td>
                   </tr>
